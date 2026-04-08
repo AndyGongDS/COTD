@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COTD — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:      #0f0f11;
+    --surface: #18181b;
+    --border:  #27272a;
+    --text:    #fafafa;
+    --muted:   #71717a;
+    --accent:  #6366f1;
+    --green:   #22c55e;
+    --orange:  #f97316;
+    --blue:    #3b82f6;
+    --purple:  #a855f7;
+    --red:     #ef4444;
+    --radius:  14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         font-size: 14px; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .layout { display: flex; min-height: 100vh; }
+  aside { width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+          padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
+          position: fixed; top: 0; bottom: 0; }
+  .logo { font-weight: 700; font-size: 16px; padding: 8px 12px;
+          margin-bottom: 20px; letter-spacing: -.3px; }
+  .logo span { color: var(--accent); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+              border-radius: 8px; cursor: pointer; color: var(--muted);
+              font-weight: 500; transition: all .15s; user-select: none; }
+  .nav-item:hover { background: #27272a; color: var(--text); }
+  .nav-item.active { background: var(--accent); color: #fff; }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-spacer { flex: 1; }
+  .chat-link { display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+               background: var(--accent); color: #fff; border-radius: 8px;
+               text-decoration: none; font-weight: 600; font-size: 13px;
+               justify-content: center; }
+
+  /* ── Main ── */
+  main { margin-left: 220px; padding: 32px; flex: 1; min-height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Page header ── */
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-size: 22px; font-weight: 700; }
+  .page-header p { color: var(--muted); margin-top: 4px; font-size: 13px; }
+
+  /* ── Stat cards ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border);
+               border-radius: var(--radius); padding: 20px 22px; }
+  .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 500;
+                      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .stat-card .dot { display: inline-block; width: 8px; height: 8px;
+                    border-radius: 50%; margin-right: 6px; }
+
+  /* ── Grid layouts ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-13 { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-bottom: 16px; }
+
+  /* ── Card ── */
+  .card { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); padding: 22px 24px; }
+  .card-header { display: flex; justify-content: space-between;
+                 align-items: center; margin-bottom: 20px; }
+  .card-header h3 { font-size: 14px; font-weight: 600; }
+  .card-header .badge { font-size: 11px; background: #27272a; color: var(--muted);
+                        padding: 3px 10px; border-radius: 20px; }
+  .chart-wrap { position: relative; }
+
+  /* ── Meal table ── */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+       color: var(--muted); font-weight: 500; padding: 0 12px 10px;
+       text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 12px; border-bottom: 1px solid #1f1f22;
+       vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1e1e22; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 20px;
+          font-size: 11px; font-weight: 500; }
+  .pill.breakfast { background: #451a03; color: #fb923c; }
+  .pill.lunch     { background: #052e16; color: #4ade80; }
+  .pill.dinner    { background: #1e1b4b; color: #818cf8; }
+  .pill.snack     { background: #2d1d42; color: #c084fc; }
+  .act-btn { background: none; border: 1px solid transparent; cursor: pointer;
+             padding: 4px 8px; border-radius: 6px; font-size: 13px;
+             color: var(--muted); transition: all .15s; }
+  .act-btn:hover { border-color: var(--border); color: var(--text); }
+  .act-btn.del:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── Progress bars ── */
+  .prog-row { margin-bottom: 14px; }
+  .prog-row .prog-label { display: flex; justify-content: space-between;
+                          font-size: 12px; margin-bottom: 6px; }
+  .prog-row .prog-label span:last-child { color: var(--muted); }
+  .prog-track { height: 6px; background: #27272a; border-radius: 99px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+
+  /* ── Modal ── */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+              z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border);
+           border-radius: 16px; padding: 28px; width: 380px; max-width: 95vw; }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .modal p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; color: var(--muted);
+                      margin-bottom: 6px; font-weight: 500; }
+  .form-group select, .form-group input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text);
+    font-size: 14px; outline: none; }
+  .form-group select:focus, .form-group input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer;
+         font-size: 13px; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.danger  { background: var(--red);    color: #fff; }
+  .btn.ghost   { background: #27272a;       color: var(--text); }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+  .empty .emoji { font-size: 32px; margin-bottom: 10px; }
+
+  /* ── Trend chip ── */
+  .trend { font-size: 12px; padding: 2px 8px; border-radius: 20px; }
+  .trend.up   { background: #052e16; color: #4ade80; }
+  .trend.down { background: #450a0a; color: #f87171; }
+  .trend.flat { background: #1c1c1e; color: var(--muted); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── Sidebar ── -->
+<aside>
+  <div class="logo">🥗 <span>COTD</span></div>
+  <div class="nav-item active" onclick="showPage('today', this)">
+    <span class="icon">📋</span> Today
+  </div>
+  <div class="nav-item" onclick="showPage('weekly', this)">
+    <span class="icon">📈</span> Weekly
+  </div>
+  <div class="nav-item" onclick="showPage('monthly', this)">
+    <span class="icon">📅</span> Monthly
+  </div>
+  <div class="sidebar-spacer"></div>
+  <a class="chat-link" href="http://localhost:8000" target="_blank">
+    💬 Open Chat
+  </a>
+</aside>
+
+<!-- ══════════ PAGE: TODAY ══════════ -->
+<main>
+<div class="page active" id="page-today">
+  <div class="page-header">
+    <h1 id="today-title">Today</h1>
+    <p id="today-sub">Loading…</p>
+  </div>
+
+  <div class="stat-grid" id="today-stats">
+    <div class="stat-card"><div class="label">Calories</div><div class="value" style="color:var(--orange)">—</div></div>
+    <div class="stat-card"><div class="label">Protein</div><div class="value" style="color:var(--blue)">—</div></div>
+    <div class="stat-card"><div class="label">Carbs</div><div class="value" style="color:var(--green)">—</div></div>
+    <div class="stat-card"><div class="label">Fat</div><div class="value" style="color:var(--purple)">—</div></div>
+  </div>
+
+  <div class="grid-13">
+    <!-- Macro breakdown donut -->
+    <div class="card">
+      <div class="card-header"><h3>Macro Breakdown</h3><span class="badge">% of calories</span></div>
+      <div class="chart-wrap" style="max-height:220px">
+        <canvas id="chart-macro-donut"></canvas>
+      </div>
+      <div id="macro-legend" style="margin-top:18px;display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <!-- Meal type distribution -->
+    <div class="card">
+      <div class="card-header"><h3>Meals by Type</h3></div>
+      <div class="chart-wrap" style="max-height:220px">
+        <canvas id="chart-meal-type"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meals table -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Meal Log</h3>
+      <span class="badge" id="meal-count-badge">0 meals</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Type</th><th>Foods</th><th>Calories</th><th>Protein</th><th>Carbs</th><th>Fat</th><th></th></tr>
+      </thead>
+      <tbody id="today-table-body">
+        <tr><td colspan="8"><div class="empty"><div class="emoji">🍽️</div>No meals yet — log one in the chat</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: WEEKLY ══════════ -->
+<div class="page" id="page-weekly">
+  <div class="page-header">
+    <h1>Weekly Overview</h1>
+    <p>Last 7 days</p>
+  </div>
+
+  <div class="stat-grid" id="weekly-stats">
+    <div class="stat-card"><div class="label">Avg Calories</div><div class="value" style="color:var(--orange)">—</div></div>
+    <div class="stat-card"><div class="label">Avg Protein</div><div class="value" style="color:var(--blue)">—</div></div>
+    <div class="stat-card"><div class="label">Days Logged</div><div class="value" style="color:var(--green)">—</div></div>
+    <div class="stat-card"><div class="label">Total Meals</div><div class="value" style="color:var(--purple)">—</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h3>Calorie Trend</h3><span class="badge">kcal / day</span></div>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="chart-weekly-line"></canvas>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h3>Macros Distribution</h3><span class="badge">7-day avg</span></div>
+      <div style="height:200px">
+        <canvas id="chart-weekly-macros"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Daily Breakdown</h3></div>
+      <table>
+        <thead><tr><th>Date</th><th>Calories</th><th>Protein</th><th>Trend</th></tr></thead>
+        <tbody id="weekly-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: MONTHLY ══════════ -->
+<div class="page" id="page-monthly">
+  <div class="page-header">
+    <h1 id="monthly-title">Monthly Overview</h1>
+    <p id="monthly-sub">This month</p>
+  </div>
+
+  <div class="stat-grid" id="monthly-stats">
+    <div class="stat-card"><div class="label">Total Calories</div><div class="value" style="color:var(--orange)">—</div></div>
+    <div class="stat-card"><div class="label">Avg / Day</div><div class="value" style="color:var(--blue)">—</div></div>
+    <div class="stat-card"><div class="label">Days Logged</div><div class="value" style="color:var(--green)">—</div></div>
+    <div class="stat-card"><div class="label">Total Protein</div><div class="value" style="color:var(--purple)">—</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h3>30-Day Calorie Trend</h3><span class="badge">kcal / day</span></div>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="chart-monthly-area"></canvas>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h3>Weekly Totals</h3></div>
+      <div style="height:200px">
+        <canvas id="chart-weekly-bars"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Macro Progress</h3><span class="badge">monthly avg</span></div>
+      <div id="monthly-progress" style="margin-top:4px"></div>
+      <div style="margin-top:20px">
+        <table class="stats-table" id="monthly-highlights"></table>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+
+<!-- ── Edit modal ── -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <h3>Edit Meal</h3>
+    <p>Update the meal type or add a note.</p>
+    <div class="form-group">
+      <label>Meal type</label>
+      <select id="edit-type">
+        <option>breakfast</option><option>lunch</option>
+        <option>dinner</option><option>snack</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input id="edit-notes" type="text" placeholder="e.g. post-workout">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeEdit()">Cancel</button>
+      <button class="btn primary" onclick="saveEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete modal ── -->
+<div class="modal-bg" id="del-modal">
+  <div class="modal">
+    <h3>Delete meal?</h3>
+    <p>This will permanently remove the meal and all its ingredients.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeDel()">Cancel</button>
+      <button class="btn danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8001/api';
+const COLORS = {
+  orange: '#f97316', blue: '#3b82f6', green: '#22c55e',
+  purple: '#a855f7', red: '#ef4444', indigo: '#6366f1',
+  muted: '#71717a',
+};
+Chart.defaults.color = '#71717a';
+Chart.defaults.borderColor = '#27272a';
+Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+let charts = {};
+const fmt = (n, d=0) => n == null ? '—' : (+n).toFixed(d);
+const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : Math.round(n)+'';
+
+function shortDate(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+}
+function timeStr(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+function pill(t) {
+  return `<span class="pill ${t}">${t}</span>`;
+}
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// ── Page nav ───────────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'today')   loadToday();
+  if (name === 'weekly')  loadWeekly();
+  if (name === 'monthly') loadMonthly();
+}
+
+// ══════════ TODAY ══════════════════════════════════════════════
+async function loadToday() {
+  const [meals, summary] = await Promise.all([
+    fetch(`${API}/meals/today`).then(r=>r.json()),
+    fetch(`${API}/summary/today`).then(r=>r.json()),
+  ]);
+
+  const d = new Date();
+  document.getElementById('today-title').textContent =
+    d.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  document.getElementById('today-sub').textContent =
+    `${summary.meal_count} meal${summary.meal_count !== 1 ? 's' : ''} logged today`;
+
+  // Stat cards
+  const stats = document.getElementById('today-stats');
+  stats.innerHTML = `
+    <div class="stat-card">
+      <div class="label">Calories</div>
+      <div class="value" style="color:var(--orange)">${fmtK(summary.total_calories)}</div>
+      <div class="sub">kcal</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Protein</div>
+      <div class="value" style="color:var(--blue)">${fmt(summary.total_protein_g,1)}g</div>
+      <div class="sub">grams</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Carbs</div>
+      <div class="value" style="color:var(--green)">${fmt(summary.total_carbs_g,1)}g</div>
+      <div class="sub">grams</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Fat</div>
+      <div class="value" style="color:var(--purple)">${fmt(summary.total_fat_g,1)}g</div>
+      <div class="sub">grams</div>
+    </div>
+  `;
+
+  // Macro donut
+  const p = summary.total_protein_g * 4;
+  const c = summary.total_carbs_g   * 4;
+  const f = summary.total_fat_g     * 9;
+  const total = p + c + f || 1;
+  destroyChart('macro-donut');
+  charts['macro-donut'] = new Chart(
+    document.getElementById('chart-macro-donut'),
+    { type: 'doughnut',
+      data: { labels: ['Protein', 'Carbs', 'Fat'],
+              datasets: [{ data: [p, c, f],
+                           backgroundColor: [COLORS.blue, COLORS.green, COLORS.purple],
+                           borderWidth: 0, borderRadius: 4, spacing: 3 }] },
+      options: { cutout: '72%', plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: ctx =>
+                   ` ${ctx.label}: ${(ctx.raw/total*100).toFixed(1)}% (${Math.round(ctx.raw)} kcal)` }}} }
+    }
+  );
+  document.getElementById('macro-legend').innerHTML = [
+    { label:'Protein', val: fmt(summary.total_protein_g,1)+'g', col: COLORS.blue,  pct: (p/total*100) },
+    { label:'Carbs',   val: fmt(summary.total_carbs_g,1)+'g',   col: COLORS.green, pct: (c/total*100) },
+    { label:'Fat',     val: fmt(summary.total_fat_g,1)+'g',     col: COLORS.purple, pct: (f/total*100) },
+  ].map(m => `
+    <div class="prog-row">
+      <div class="prog-label"><span><span class="dot" style="background:${m.col}"></span>${m.label}</span><span>${m.val} — ${m.pct.toFixed(1)}%</span></div>
+      <div class="prog-track"><div class="prog-fill" style="width:${m.pct}%;background:${m.col}"></div></div>
+    </div>`).join('');
+
+  // Meal type donut
+  const typeCounts = {};
+  meals.forEach(m => typeCounts[m.meal_type] = (typeCounts[m.meal_type]||0) + 1);
+  const typeColors = { breakfast: COLORS.orange, lunch: COLORS.green, dinner: COLORS.indigo, snack: COLORS.purple };
+  destroyChart('meal-type');
+  charts['meal-type'] = new Chart(
+    document.getElementById('chart-meal-type'),
+    { type: 'doughnut',
+      data: { labels: Object.keys(typeCounts),
+              datasets: [{ data: Object.values(typeCounts),
+                           backgroundColor: Object.keys(typeCounts).map(k => typeColors[k]||COLORS.muted),
+                           borderWidth: 0, borderRadius: 4, spacing: 3 }] },
+      options: { cutout: '65%', plugins: { legend: { position: 'bottom',
+                 labels: { padding: 14, boxWidth: 10, boxHeight: 10, borderRadius: 5, useBorderRadius: true }}}}
+    }
+  );
+
+  // Table
+  const tbody = document.getElementById('today-table-body');
+  if (!meals.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="emoji">🍽️</div>No meals yet — log one in the chat</div></td></tr>';
+    return;
+  }
+  document.getElementById('meal-count-badge').textContent = `${meals.length} meal${meals.length!==1?'s':''}`;
+  tbody.innerHTML = meals.map(m => `
+    <tr>
+      <td style="color:var(--muted)">${timeStr(m.meal_timestamp)}</td>
+      <td>${pill(m.meal_type)}</td>
+      <td style="color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${(m.ingredients||[]).map(i=>i.ingredient_name).join(', ')||'—'}
+      </td>
+      <td><b>${fmt(m.total_calories)}</b></td>
+      <td style="color:var(--blue)">${fmt(m.total_protein_g,1)}g</td>
+      <td style="color:var(--green)">${fmt(m.total_carbs_g,1)}g</td>
+      <td style="color:var(--purple)">${fmt(m.total_fat_g,1)}g</td>
+      <td>
+        <button class="act-btn" onclick="openEdit(${m.id},'${m.meal_type}')">✏️</button>
+        <button class="act-btn del" onclick="openDel(${m.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ══════════ WEEKLY ═════════════════════════════════════════════
+async function loadWeekly() {
+  const data = await fetch(`${API}/summary/weekly`).then(r=>r.json());
+  const days = data.days || [];
+  const avgs = data.averages || {};
+
+  // Stat cards
+  document.getElementById('weekly-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Avg Calories</div>
+      <div class="value" style="color:var(--orange)">${fmtK(avgs.avg_calories||0)}</div>
+      <div class="sub">kcal / day</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg Protein</div>
+      <div class="value" style="color:var(--blue)">${fmt(avgs.avg_protein_g,1)}g</div>
+      <div class="sub">per day</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Days Logged</div>
+      <div class="value" style="color:var(--green)">${avgs.days_logged||0}</div>
+      <div class="sub">of 7</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Meals</div>
+      <div class="value" style="color:var(--purple)">${days.reduce((s,d)=>s+(d.meal_count||0),0)}</div>
+      <div class="sub">this week</div>
+    </div>
+  `;
+
+  // Line chart
+  destroyChart('weekly-line');
+  const labels = days.map(d => new Date(d.date+'T00:00:00').toLocaleDateString([],{weekday:'short',day:'numeric'}));
+  const kcals  = days.map(d => d.total_calories || 0);
+  charts['weekly-line'] = new Chart(document.getElementById('chart-weekly-line'), {
+    type: 'line',
+    data: { labels,
+            datasets: [{
+              label: 'Calories', data: kcals,
+              borderColor: COLORS.orange, backgroundColor: 'rgba(249,115,22,.12)',
+              borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: COLORS.orange,
+              fill: true, tension: .4,
+            }]},
+    options: { responsive: true, maintainAspectRatio: false,
+               plugins: { legend: { display: false } },
+               scales: { y: { beginAtZero: true, grid: { color: '#27272a' } },
+                         x: { grid: { display: false } } } }
+  });
+
+  // Stacked macro bar
+  destroyChart('weekly-macros');
+  charts['weekly-macros'] = new Chart(document.getElementById('chart-weekly-macros'), {
+    type: 'bar',
+    data: { labels,
+            datasets: [
+              { label: 'Protein (kcal)', data: days.map(d=>(d.total_protein_g||0)*4), backgroundColor: COLORS.blue, borderRadius: 4, stack: 's' },
+              { label: 'Carbs (kcal)',   data: days.map(d=>(d.total_carbs_g||0)*4),   backgroundColor: COLORS.green, borderRadius: 4, stack: 's' },
+              { label: 'Fat (kcal)',     data: days.map(d=>(d.total_fat_g||0)*9),     backgroundColor: COLORS.purple, borderRadius: 4, stack: 's' },
+            ]},
+    options: { responsive: true, maintainAspectRatio: false,
+               plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, padding: 12, borderRadius: 5, useBorderRadius: true }}},
+               scales: { y: { stacked: true, beginAtZero: true, grid: { color: '#27272a' } },
+                         x: { stacked: true, grid: { display: false } } } }
+  });
+
+  // Table with trend arrows
+  const avgKcal = avgs.avg_calories || 0;
+  document.getElementById('weekly-table').innerHTML = days.map(d => {
+    const kcal = d.total_calories || 0;
+    const diff = kcal - avgKcal;
+    const trendCls = diff > 50 ? 'up' : diff < -50 ? 'down' : 'flat';
+    const trendTxt = diff > 50 ? `+${Math.round(diff)}` : diff < -50 ? `${Math.round(diff)}` : 'avg';
+    return kcal > 0 ? `
+      <tr>
+        <td>${shortDate(d.date)}</td>
+        <td><b>${Math.round(kcal)}</b></td>
+        <td style="color:var(--blue)">${fmt(d.total_protein_g,1)}g</td>
+        <td><span class="trend ${trendCls}">${trendTxt}</span></td>
+      </tr>` : `
+      <tr>
+        <td style="color:var(--muted)">${shortDate(d.date)}</td>
+        <td colspan="3" style="color:var(--muted)">—</td>
+      </tr>`;
+  }).join('');
+}
+
+// ══════════ MONTHLY ════════════════════════════════════════════
+async function loadMonthly() {
+  const data = await fetch(`${API}/summary/monthly`).then(r=>r.json());
+  const days  = data.days  || [];
+  const weeks = data.weeks || [];
+  const t     = data.totals || {};
+  const hi    = data.highest_day;
+  const lo    = data.lowest_day;
+
+  document.getElementById('monthly-title').textContent =
+    new Date().toLocaleDateString([], {month:'long', year:'numeric'});
+
+  document.getElementById('monthly-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Total Calories</div>
+      <div class="value" style="color:var(--orange)">${fmtK(t.total_calories||0)}</div>
+      <div class="sub">kcal this month</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg / Day</div>
+      <div class="value" style="color:var(--blue)">${fmtK(t.avg_daily_calories||0)}</div>
+      <div class="sub">kcal</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Days Logged</div>
+      <div class="value" style="color:var(--green)">${t.days_logged||0}</div>
+      <div class="sub">of ${days.length}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Protein</div>
+      <div class="value" style="color:var(--purple)">${fmt(t.total_protein_g,0)}g</div>
+      <div class="sub">this month</div>
+    </div>
+  `;
+
+  // Area line — 30 days
+  destroyChart('monthly-area');
+  charts['monthly-area'] = new Chart(document.getElementById('chart-monthly-area'), {
+    type: 'line',
+    data: { labels: days.map(d => new Date(d.date+'T00:00:00').getDate()),
+            datasets: [{
+              label: 'Calories', data: days.map(d => d.total_calories || null),
+              borderColor: COLORS.indigo, backgroundColor: 'rgba(99,102,241,.15)',
+              borderWidth: 2, pointRadius: 2, fill: true, tension: .4,
+              spanGaps: false,
+            }]},
+    options: { responsive: true, maintainAspectRatio: false,
+               plugins: { legend: { display: false } },
+               scales: { y: { beginAtZero: true, grid: { color: '#27272a' } },
+                         x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } } } }
+  });
+
+  // Weekly bar chart
+  destroyChart('weekly-bars');
+  charts['weekly-bars'] = new Chart(document.getElementById('chart-weekly-bars'), {
+    type: 'bar',
+    data: { labels: weeks.map(w => w.label),
+            datasets: [{
+              label: 'Total kcal', data: weeks.map(w => w.total_calories||0),
+              backgroundColor: COLORS.indigo, borderRadius: 6,
+            }]},
+    options: { responsive: true, maintainAspectRatio: false,
+               plugins: { legend: { display: false } },
+               scales: { y: { beginAtZero: true, grid: { color: '#27272a' } },
+                         x: { grid: { display: false } } } }
+  });
+
+  // Macro progress
+  const maxMacro = Math.max(t.total_protein_g||0, t.total_carbs_g||0, t.total_fat_g||0, 1);
+  document.getElementById('monthly-progress').innerHTML = [
+    { label:'Protein', val: fmt(t.total_protein_g,0)+'g', col: COLORS.blue,   pct: (t.total_protein_g||0)/maxMacro*100 },
+    { label:'Carbs',   val: fmt(t.total_carbs_g,0)+'g',   col: COLORS.green,  pct: (t.total_carbs_g||0)/maxMacro*100 },
+    { label:'Fat',     val: fmt(t.total_fat_g,0)+'g',     col: COLORS.purple, pct: (t.total_fat_g||0)/maxMacro*100 },
+  ].map(m => `
+    <div class="prog-row">
+      <div class="prog-label">
+        <span><span class="dot" style="background:${m.col}"></span>${m.label}</span>
+        <span>${m.val}</span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${m.pct}%;background:${m.col}"></div></div>
+    </div>`).join('');
+
+  document.getElementById('monthly-highlights').innerHTML = `
+    ${hi ? `<tr><td style="color:var(--muted)">Peak day</td><td style="color:var(--orange)">${hi.date} — ${fmt(hi.calories)} kcal</td></tr>` : ''}
+    ${lo ? `<tr><td style="color:var(--muted)">Lowest day</td><td">${lo.date} — ${fmt(lo.calories)} kcal</td></tr>` : ''}
+    <tr><td style="color:var(--muted)">Avg protein/day</td><td style="color:var(--blue)">${fmt(t.days_logged ? t.total_protein_g/t.days_logged : 0, 1)} g</td></tr>
+    <tr><td style="color:var(--muted)">Avg carbs/day</td><td style="color:var(--green)">${fmt(t.days_logged ? t.total_carbs_g/t.days_logged : 0, 1)} g</td></tr>
+  `;
+}
+
+// ── Edit ─────────────────────────────────────────────────────
+let editId=null, delId=null;
+function openEdit(id, type) {
+  editId=id;
+  document.getElementById('edit-type').value=type;
+  document.getElementById('edit-notes').value='';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEdit() { document.getElementById('edit-modal').classList.remove('open'); }
+async function saveEdit() {
+  await fetch(`${API}/meals/${editId}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ meal_type: document.getElementById('edit-type').value,
+                           notes:     document.getElementById('edit-notes').value })
+  });
+  closeEdit(); loadToday();
+}
+
+// ── Delete ───────────────────────────────────────────────────
+function openDel(id) { delId=id; document.getElementById('del-modal').classList.add('open'); }
+function closeDel() { document.getElementById('del-modal').classList.remove('open'); }
+async function confirmDelete() {
+  await fetch(`${API}/meals/${delId}`, {method:'DELETE'});
+  closeDel(); loadToday();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+loadToday();
+</script>
+</body>
+</html>
